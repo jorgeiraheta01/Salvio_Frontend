@@ -1,7 +1,9 @@
 import { headers } from "next/headers";
 
-import { TENANT_HEADER, getDefaultTenant } from "@/shared/utils/tenant";
+import { getDefaultTenant, resolveTenantFromHost } from "@/shared/utils/tenant";
 
 export function getTenantServer(): string {
-  return headers().get(TENANT_HEADER) || getDefaultTenant();
+  const host = headers().get("host");
+  const resolved = resolveTenantFromHost(host);
+  return resolved || getDefaultTenant();
 }

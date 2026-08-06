@@ -23,7 +23,7 @@ const TENANT_CACHE_KEY = "salvio.tenant";
 
 function formatClinicName(subdomain: string): string {
   return subdomain
-    .split("-")
+    .split(/[-_]/)
     .filter(Boolean)
     .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
     .join(" ");

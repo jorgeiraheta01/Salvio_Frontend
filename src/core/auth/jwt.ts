@@ -3,6 +3,7 @@ type JwtPayload = {
   tenant_id?: string;
   role?: string;
   sub?: string;
+  type?: string;
 };
 
 function decodeBase64Url(value: string): string {

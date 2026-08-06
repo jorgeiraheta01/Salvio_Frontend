@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../SalvioCore"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
+}

@@ -68,6 +68,7 @@ function LoginFormShell({ nextPath, tenantId }: LoginFormShellProps) {
   const mutation = useLogin();
   const token = useAuthStore((state) => state.token);
   const isHydrated = useAuthStore((state) => state.isHydrated);
+  const hydrateAuthState = useAuthStore((state) => state.hydrateAuthState);
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -85,7 +86,12 @@ function LoginFormShell({ nextPath, tenantId }: LoginFormShellProps) {
   }, [token, isHydrated, nextPath, router]);
 
   async function onSubmit(values: LoginFormValues) {
-    await mutation.mutateAsync(values);
+    await mutation.mutateAsync({ ...values, tenantId });
+    await hydrateAuthState();
+    const nextToken = useAuthStore.getState().token;
+    if (!nextToken) {
+      throw new Error("Token no disponible despues de login");
+    }
     router.replace(nextPath || "/dashboard");
   }
 
