@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CalendarPlus, CheckCircle2, Pencil, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarPlus, CheckCircle2, Pencil, Plus, Send, Trash2 } from "lucide-react";
 
 import {
   closeClinicalNote,
@@ -42,6 +42,8 @@ import { APPOINTMENT_TYPES } from "@/modules/appointments/appointment-status";
 import { cn } from "@/shared/utils/cn";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
 import { Button } from "@/shared/components/ui/button";
+import { DiagnosisTimeline } from "@/modules/clinical/components/diagnosis-timeline";
+import { ReferPatientModal } from "@/modules/clinical/components/refer-patient-modal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/shared/components/ui/card";
 import { ConfirmDialog } from "@/shared/components/ui/confirm-dialog";
 import { Input } from "@/shared/components/ui/input";
@@ -50,7 +52,7 @@ import { Modal } from "@/shared/components/ui/modal";
 import { Select } from "@/shared/components/ui/select";
 import { Textarea } from "@/shared/components/ui/textarea";
 
-const tabs = ["Historia", "Diagnosticos", "Complementos", "Nota SOAP", "Resumen"] as const;
+const tabs = ["Contexto", "Historia", "Diagnosticos", "Complementos", "Nota SOAP", "Resumen"] as const;
 
 type TabKey = (typeof tabs)[number];
 
@@ -113,12 +115,13 @@ function defaultFollowUpDate(): string {
 export function EncounterScreen({ encounterId }: { encounterId: string }) {
   const router = useRouter();
   const currentUser = useCurrentUser();
-  const [activeTab, setActiveTab] = useState<TabKey>("Historia");
+  const [activeTab, setActiveTab] = useState<TabKey>("Contexto");
   const [encounter, setEncounter] = useState<EncounterSummary | null>(null);
   const [diagnoses, setDiagnoses] = useState<Diagnosis[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isClosing, setIsClosing] = useState(false);
+  const [referModalOpen, setReferModalOpen] = useState(false);
   const [closeError, setCloseError] = useState<string | null>(null);
   const [diagQuickText, setDiagQuickText] = useState("");
   const [diagQuickNotes, setDiagQuickNotes] = useState("");
@@ -683,7 +686,11 @@ export function EncounterScreen({ encounterId }: { encounterId: string }) {
                     <AlertDescription>{followUpError}</AlertDescription>
                   </Alert>
                 ) : null}
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => setReferModalOpen(true)}>
+                    <Send className="mr-1.5 h-4 w-4" />
+                    Referir con especialista
+                  </Button>
                   <Button type="button" variant="outline" onClick={() => router.push("/agenda")}>
                     Omitir
                   </Button>
@@ -694,7 +701,11 @@ export function EncounterScreen({ encounterId }: { encounterId: string }) {
               </div>
             )}
             {followUpCreated ? (
-              <div className="flex justify-end">
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setReferModalOpen(true)}>
+                  <Send className="mr-1.5 h-4 w-4" />
+                  Referir con especialista
+                </Button>
                 <Button type="button" onClick={() => router.push("/agenda")}>
                   Ir a la agenda
                 </Button>
@@ -711,6 +722,15 @@ export function EncounterScreen({ encounterId }: { encounterId: string }) {
           </Button>
         ))}
       </div>
+
+      {activeTab === "Contexto" && (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Consultas previas de {encounter.patient.full_name} -- para dar contexto antes de documentar esta consulta, sin salir de esta pantalla.
+          </p>
+          <DiagnosisTimeline patientId={encounter.patient.id} />
+        </div>
+      )}
 
       {activeTab === "Historia" && (
         <Card>
@@ -1096,9 +1116,13 @@ export function EncounterScreen({ encounterId }: { encounterId: string }) {
       ) : null}
 
       {!isClosed ? (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => setReferModalOpen(true)}>
+            <Send className="mr-1.5 h-4 w-4" />
+            Referir a medico
+          </Button>
           <Button type="button" onClick={onCloseEncounter} disabled={isClosing}>
-            {isClosing ? "Cerrando..." : "Cerrar consulta"}
+            {isClosing ? "Terminando..." : "Terminar consulta"}
           </Button>
         </div>
       ) : null}
@@ -1214,6 +1238,14 @@ export function EncounterScreen({ encounterId }: { encounterId: string }) {
         destructive
         onCancel={() => setDiagDeleteTarget(null)}
         onConfirm={onDeleteDiagnosis}
+      />
+
+      <ReferPatientModal
+        open={referModalOpen}
+        patientId={encounter.patient.id}
+        patientLabel={encounter.patient.full_name}
+        onClose={() => setReferModalOpen(false)}
+        onReferred={() => setReferModalOpen(false)}
       />
     </div>
   );

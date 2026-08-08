@@ -6,6 +6,9 @@ export type EncounterSummary = {
   patient_id: string;
   doctor_id: string;
   status: "active" | "completed" | "closed";
+  chief_complaint?: string | null;
+  started_at?: string;
+  closed_at?: string | null;
   version: number;
   patient: {
     id: string;
@@ -70,6 +73,7 @@ export type PatientItem = {
   last_occupation?: string | null;
   last_contribution_period?: string | null;
   last_work_date?: string | null;
+  is_referred?: boolean;
   created_at?: string | null;
   updated_at?: string | null;
 };

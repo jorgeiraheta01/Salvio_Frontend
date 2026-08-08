@@ -57,6 +57,7 @@ import {
   immunizationsApi,
   surgeriesApi
 } from "@/modules/patients/api/patient-resources.api";
+import { DiagnosisTimeline } from "@/modules/clinical/components/diagnosis-timeline";
 import { EncounterHistoryPanel } from "@/modules/clinical/components/encounter-history-panel";
 import { useEncounterHistoryStore } from "@/modules/clinical/store/encounterHistoryStore";
 import { Alert, AlertDescription } from "@/shared/components/ui/alert";
@@ -286,9 +287,12 @@ export function PatientProfileScreen({ patientId }: { patientId: string }) {
             {initials || <UserRound className="h-7 w-7" />}
           </div>
           <div>
-            <h1 className="text-xl font-extrabold text-slate-900">
-              {patient.first_name} {patient.last_name}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-extrabold text-slate-900">
+                {patient.first_name} {patient.last_name}
+              </h1>
+              {patient.is_referred ? <Badge variant="accent">Referido de otra clinica</Badge> : null}
+            </div>
             <p className="text-sm text-slate-500">
               {age !== null ? `${age} anos` : "Edad N/D"} - {patient.medical_record_number ?? "N/D"}
             </p>
@@ -437,6 +441,7 @@ export function PatientProfileScreen({ patientId }: { patientId: string }) {
           </Card>
         </div>
 
+        <div className="space-y-5">
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div className="flex items-center gap-2">
@@ -492,6 +497,9 @@ export function PatientProfileScreen({ patientId }: { patientId: string }) {
             )}
           </CardContent>
         </Card>
+
+        <DiagnosisTimeline patientId={patientId} />
+        </div>
       </div>
       ) : null}
 

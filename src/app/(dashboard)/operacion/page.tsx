@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { BillingTab } from "@/modules/operations/components/billing-tab";
 import { ImagingTab } from "@/modules/operations/components/imaging-tab";
@@ -20,7 +21,9 @@ const TABS: Array<{ key: OperationTab; label: string }> = [
 ];
 
 export default function OperacionPage() {
-  const [activeTab, setActiveTab] = useState<OperationTab>("facturacion");
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") === "referencias" ? "referencias" : "facturacion";
+  const [activeTab, setActiveTab] = useState<OperationTab>(initialTab);
 
   return (
     <div className="space-y-5">
@@ -49,7 +52,9 @@ export default function OperacionPage() {
       {activeTab === "laboratorio" ? <LabTab /> : null}
       {activeTab === "imagenologia" ? <ImagingTab /> : null}
       {activeTab === "ordenes" ? <OrdersTab /> : null}
-      {activeTab === "referencias" ? <ReferralsTab /> : null}
+      {activeTab === "referencias" ? (
+        <ReferralsTab initialSubTab={searchParams.get("sub") === "recibidas" ? "recibidas" : undefined} />
+      ) : null}
     </div>
   );
 }

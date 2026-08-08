@@ -36,6 +36,7 @@ export type Referral = {
   referral_type: string;
   destination_area?: string | null;
   transfer_reason?: string | null;
+  target_doctor_name?: string | null;
   status: string;
 };
 
@@ -177,8 +178,119 @@ export async function createReferral(payload: {
   destination_area?: string;
   transfer_reason?: string;
   referred_by: string;
+  referred_by_name?: string;
+  target_tenant_id?: string;
+  target_doctor_id?: string;
+  target_doctor_name?: string;
 }): Promise<Referral> {
   return httpRequest<Referral>("/api/v1/referrals", { method: "POST", body: payload });
+}
+
+export type NetworkDoctor = {
+  id: string;
+  full_name: string;
+  specialty?: string | null;
+  tenant_id: string;
+  tenant_name?: string | null;
+};
+
+export async function searchNetworkDoctors(q: string): Promise<NetworkDoctor[]> {
+  return httpRequest<NetworkDoctor[]>(`/api/v1/referrals/network-doctors?q=${encodeURIComponent(q)}`);
+}
+
+export type OutgoingReferral = {
+  id: string;
+  referral_type: string;
+  target_tenant_id?: string | null;
+  target_tenant_name?: string | null;
+  target_doctor_name?: string | null;
+  destination_area?: string | null;
+  transfer_reason?: string | null;
+  status: string;
+  created_at: string;
+};
+
+export async function listReferralsByPatient(patientId: string): Promise<OutgoingReferral[]> {
+  return httpRequest<OutgoingReferral[]>(`/api/v1/referrals/by-patient/${patientId}`);
+}
+
+export type IncomingReferral = {
+  id: string;
+  referral_id: string;
+  source_tenant_id: string;
+  target_tenant_id: string;
+  patient_id: string;
+  patient_name: string;
+  patient_phone?: string | null;
+  referred_by_name?: string | null;
+  referred_by_specialty?: string | null;
+  source_tenant_name?: string | null;
+  target_doctor_id?: string | null;
+  target_doctor_name?: string | null;
+  destination_area?: string | null;
+  transfer_reason?: string | null;
+  status: string;
+  imported_patient_id?: string | null;
+  created_at: string;
+};
+
+export async function listIncomingReferrals(): Promise<IncomingReferral[]> {
+  return httpRequest<IncomingReferral[]>("/api/v1/referrals/incoming");
+}
+
+export type ImportedPatient = { patient_id: string; already_existed: boolean };
+
+export async function importReferredPatient(referralId: string): Promise<ImportedPatient> {
+  return httpRequest<ImportedPatient>(`/api/v1/referrals/cross-tenant/${referralId}/import-patient`, { method: "POST" });
+}
+
+export async function updateCrossTenantReferralStatus(
+  referralId: string,
+  status: "accepted" | "completed" | "rejected"
+): Promise<IncomingReferral> {
+  return httpRequest<IncomingReferral>(`/api/v1/referrals/cross-tenant/${referralId}/status`, {
+    method: "PATCH",
+    body: { status }
+  });
+}
+
+export type CrossTenantHistory = {
+  source_tenant_id: string;
+  source_tenant_name?: string | null;
+  referral: IncomingReferral;
+  patient: {
+    id: string;
+    full_name: string;
+    date_of_birth: string;
+    gender: string;
+    dui?: string | null;
+  };
+  encounters: {
+    id: string;
+    doctor_name?: string | null;
+    chief_complaint?: string | null;
+    status: string;
+    started_at: string;
+    closed_at?: string | null;
+    notes: { note_type: string; content: string; authored_by_name?: string | null; is_closed: boolean; created_at: string }[];
+    diagnoses: { code: string; description: string; classification: string; severity?: string | null }[];
+  }[];
+};
+
+export async function getCrossTenantHistory(referralId: string): Promise<CrossTenantHistory> {
+  return httpRequest<CrossTenantHistory>(`/api/v1/referrals/cross-tenant/${referralId}/history`);
+}
+
+// Igual que getCrossTenantHistory, pero buscado por el paciente local ya
+// importado en vez de por el id de la referencia -- para el perfil del
+// paciente en el tenant destino. 404 si este paciente no vino de una
+// referencia (caso normal, no es un error real).
+export async function getImportedPatientHistory(patientId: string): Promise<CrossTenantHistory | null> {
+  try {
+    return await httpRequest<CrossTenantHistory>(`/api/v1/referrals/imported-patient/${patientId}/history`);
+  } catch {
+    return null;
+  }
 }
 
 export type ReferralDetail = Referral & {

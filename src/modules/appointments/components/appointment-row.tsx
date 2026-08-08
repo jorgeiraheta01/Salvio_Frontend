@@ -16,6 +16,7 @@ type AppointmentRowProps = {
   patient: PatientItem | null | undefined;
   doctor: UserDirectoryEntry | null | undefined;
   canManage: boolean;
+  isClinicalStaff: boolean;
   canRegisterTriage: boolean;
   busy: boolean;
   onTransition: (status: AppointmentStatus) => void;
@@ -38,6 +39,7 @@ export function AppointmentRow({
   patient,
   doctor,
   canManage,
+  isClinicalStaff,
   canRegisterTriage,
   busy,
   onTransition,
@@ -55,14 +57,20 @@ export function AppointmentRow({
 
   const actions: ActionMenuItem[] = [];
   if (canManage && !isTerminal) {
-    if (appointment.status === "scheduled") {
+    // Confirmar / Registrar llegada son parte de la recepcion del paciente
+    // (secretaria o asistente) -- al medico solo le interesa "Iniciar
+    // consulta" cuando el paciente ya esta en sala de espera.
+    if (!isClinicalStaff && appointment.status === "scheduled") {
       actions.push({ label: "Confirmar", icon: CheckCircle2, onSelect: () => onTransition("confirmed") });
     }
-    if (appointment.status === "confirmed") {
+    if (!isClinicalStaff && appointment.status === "confirmed") {
       actions.push({ label: "Registrar llegada", icon: LogIn, onSelect: () => onTransition("checked_in") });
     }
     if (appointment.status === "checked_in") {
       actions.push({ label: "Iniciar consulta", icon: Stethoscope, onSelect: onStartConsultation });
+    }
+    if (appointment.status === "in_consultation") {
+      actions.push({ label: "Continuar consulta", icon: Stethoscope, onSelect: onStartConsultation });
     }
     if (appointment.status !== "checked_in") {
       actions.push({ label: "Reprogramar", icon: RotateCcw, onSelect: () => onRequestReason("rescheduled") });
@@ -100,14 +108,14 @@ export function AppointmentRow({
 
         <div className="flex items-center gap-3">
           <AppointmentStatusBadge status={appointment.status} />
-          {appointment.status === "checked_in" && canManage ? (
+          {(appointment.status === "checked_in" || appointment.status === "in_consultation") && canManage ? (
             <button
               type="button"
               disabled={busy}
               onClick={onStartConsultation}
               className="hidden rounded-custom bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand/90 disabled:opacity-50 sm:inline-flex"
             >
-              Iniciar consulta
+              {appointment.status === "checked_in" ? "Iniciar consulta" : "Continuar consulta"}
             </button>
           ) : null}
           <ActionMenu items={actions} disabled={busy} />

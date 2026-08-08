@@ -1,11 +1,23 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
 import { useAuthStore } from "@/modules/auth/store/auth.store";
+import { listIncomingReferrals } from "@/modules/operations/api/operations.api";
 import { useTenant } from "@/shared/components/providers/tenant-provider";
 
 export function AppHeader() {
   const logout = useAuthStore((state) => state.logout);
   const tenantId = useTenant();
+  const router = useRouter();
+  const [pendingReferralCount, setPendingReferralCount] = useState(0);
+
+  useEffect(() => {
+    listIncomingReferrals()
+      .then((data) => setPendingReferralCount(data.filter((item) => item.status === "pending").length))
+      .catch(() => setPendingReferralCount(0));
+  }, []);
 
   return (
     <header className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-8" data-purpose="header">
@@ -28,7 +40,8 @@ export function AppHeader() {
       <div className="flex items-center space-x-3">
         <button
           type="button"
-          className="flex items-center rounded-custom border border-slate-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-slate-50"
+          onClick={() => router.push("/operacion?tab=referencias&sub=recibidas")}
+          className="relative flex items-center rounded-custom border border-slate-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-slate-50"
         >
           <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
@@ -39,6 +52,11 @@ export function AppHeader() {
             />
           </svg>
           Alertas
+          {pendingReferralCount > 0 ? (
+            <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+              {pendingReferralCount > 9 ? "9+" : pendingReferralCount}
+            </span>
+          ) : null}
         </button>
         <button
           type="button"

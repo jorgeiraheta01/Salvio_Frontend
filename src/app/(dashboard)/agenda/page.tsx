@@ -96,6 +96,7 @@ export default function AgendaPage() {
   const monthCache = useRef<Map<string, Set<number>>>(new Map());
 
   const canManage = currentUser ? APPOINTMENT_MANAGER_ROLES.has(currentUser.role) : false;
+  const isClinicalStaff = currentUser ? currentUser.role === "doctor" || currentUser.role === "resident" : false;
   const canRegisterTriage = currentUser ? TRIAGE_ROLES.has(currentUser.role) : false;
 
   const loadAppointments = useCallback(async () => {
@@ -424,6 +425,7 @@ export default function AgendaPage() {
                   canManage={canManage}
                   canRegisterTriage={canRegisterTriage}
                   busy={busyId === appointment.id}
+                  isClinicalStaff={isClinicalStaff}
                   onTransition={(status) => handleTransition(appointment, status)}
                   onRequestReason={(status) => setReasonRequest({ appointmentId: appointment.id, status, currentStatus: appointment.status })}
                   onStartConsultation={() => handleStartConsultation(appointment)}

@@ -15,6 +15,7 @@ import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 
 type StatusFilter = "Todos" | "Activo" | "Inactivo";
+type OriginFilter = "Todos" | "Referidos";
 
 function calculateAge(dateOfBirth: string): number | null {
   const dob = new Date(dateOfBirth);
@@ -33,6 +34,7 @@ export default function PatientsPage() {
   const currentUser = useCurrentUser();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("Todos");
+  const [originFilter, setOriginFilter] = useState<OriginFilter>("Todos");
   const [patients, setPatients] = useState<PatientItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,8 +68,9 @@ export default function PatientsPage() {
   // list — a real filter needs a `include_deleted` query param on the backend.
   const filteredPatients = useMemo(() => {
     if (statusFilter === "Inactivo") return [];
+    if (originFilter === "Referidos") return patients.filter((patient) => patient.is_referred);
     return patients;
-  }, [patients, statusFilter]);
+  }, [patients, statusFilter, originFilter]);
 
   const totalLabel = loading
     ? "Cargando pacientes..."
@@ -98,11 +101,17 @@ export default function PatientsPage() {
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
-        <div className="w-48">
+        <div className="w-44">
           <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
             <option value="Todos">Todos los estados</option>
             <option value="Activo">Activo</option>
             <option value="Inactivo">Inactivo</option>
+          </Select>
+        </div>
+        <div className="w-44">
+          <Select value={originFilter} onChange={(event) => setOriginFilter(event.target.value as OriginFilter)}>
+            <option value="Todos">Todos los origenes</option>
+            <option value="Referidos">Pacientes referidos</option>
           </Select>
         </div>
       </div>
@@ -133,6 +142,8 @@ export default function PatientsPage() {
               <p className="text-sm text-slate-500">
                 El backend no expone pacientes inactivos por API — no hay nada que mostrar con este filtro.
               </p>
+            ) : originFilter === "Referidos" ? (
+              <p className="text-sm text-slate-500">Ningun paciente de esta clinica proviene de una referencia.</p>
             ) : query ? (
               <p className="text-sm text-slate-500">Ningun paciente coincide con &quot;{query}&quot;.</p>
             ) : (
@@ -170,7 +181,10 @@ export default function PatientsPage() {
                     {patient.medical_record_number ?? "Sin expediente"} · {age !== null ? `${age} anos` : "Edad N/D"} · {genderLabel}
                   </p>
                 </div>
-                <Badge variant="primary">Activo</Badge>
+                <div className="flex flex-shrink-0 flex-col items-end gap-1">
+                  <Badge variant="primary">Activo</Badge>
+                  {patient.is_referred ? <Badge variant="accent">Referido</Badge> : null}
+                </div>
               </Link>
             );
           })}

@@ -28,33 +28,74 @@ type NewAppointmentDialogProps = {
   tenantId: string;
   defaultDoctorId: string;
   defaultDate: string;
+  defaultPatient?: PatientItem | null;
   onClose: () => void;
   onCreated: () => void;
 };
 
-function toLocalDateTimeInputValue(dateStr: string): string {
-  const now = new Date();
-  const [year, month, day] = dateStr.split("-").map(Number);
-  now.setFullYear(year, (month ?? 1) - 1, day ?? 1);
-  now.setSeconds(0, 0);
-  now.setMinutes(Math.ceil(now.getMinutes() / 5) * 5);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+const SLOT_MINUTES = 30;
+
+// Genera las franjas horarias del dia en incrementos de 30 minutos --
+// "00:00".."23:30". El input nativo type="datetime-local" con step=1800 no
+// filtra su selector visual de minutos por step en todos los navegadores
+// (sigue mostrando 00-59), asi que el unico control real es no dejar elegir
+// nada fuera de estos valores.
+const TIME_SLOTS: string[] = Array.from({ length: (24 * 60) / SLOT_MINUTES }, (_, index) => {
+  const totalMinutes = index * SLOT_MINUTES;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+});
+
+function formatTimeSlotLabel(slot: string): string {
+  const [hours, minutes] = slot.split(":").map(Number);
+  const period = hours < 12 ? "a. m." : "p. m.";
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${String(hour12).padStart(2, "0")}:${String(minutes).padStart(2, "0")} ${period}`;
 }
 
-function nowLocalDateTimeInputValue(): string {
+function todayLocalDateValue(): string {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-export function NewAppointmentDialog({ open, tenantId, defaultDoctorId, defaultDate, onClose, onCreated }: NewAppointmentDialogProps) {
+// Primera franja de 30 min que ya no quedo en el pasado para la fecha dada.
+function nextAvailableTimeSlot(dateStr: string): string {
+  if (dateStr !== todayLocalDateValue()) {
+    return TIME_SLOTS[0];
+  }
+  const now = new Date();
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  const nextSlotMinutes = Math.ceil(minutesNow / SLOT_MINUTES) * SLOT_MINUTES;
+  const slot = TIME_SLOTS.find((candidate) => {
+    const [hours, minutes] = candidate.split(":").map(Number);
+    return hours * 60 + minutes >= nextSlotMinutes;
+  });
+  return slot ?? TIME_SLOTS[TIME_SLOTS.length - 1];
+}
+
+function combineDateAndTime(dateStr: string, timeStr: string): string {
+  return `${dateStr}T${timeStr}`;
+}
+
+export function NewAppointmentDialog({
+  open,
+  tenantId,
+  defaultDoctorId,
+  defaultDate,
+  defaultPatient,
+  onClose,
+  onCreated
+}: NewAppointmentDialogProps) {
   const { doctors } = useDoctorDirectory();
   const [patientQuery, setPatientQuery] = useState("");
   const [patientResults, setPatientResults] = useState<PatientItem[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientItem | null>(null);
   const [searching, setSearching] = useState(false);
-  const [scheduledAt, setScheduledAt] = useState("");
+  const [dateValue, setDateValue] = useState("");
+  const [timeValue, setTimeValue] = useState(TIME_SLOTS[0]);
+  const scheduledAt = dateValue ? combineDateAndTime(dateValue, timeValue) : "";
   const [appointmentType, setAppointmentType] = useState(APPOINTMENT_TYPES[0]);
   const [doctorId, setDoctorId] = useState(defaultDoctorId);
   const [notes, setNotes] = useState("");
@@ -76,8 +117,9 @@ export function NewAppointmentDialog({ open, tenantId, defaultDoctorId, defaultD
     }
     setPatientQuery("");
     setPatientResults([]);
-    setSelectedPatient(null);
-    setScheduledAt(toLocalDateTimeInputValue(defaultDate));
+    setSelectedPatient(defaultPatient ?? null);
+    setDateValue(defaultDate);
+    setTimeValue(nextAvailableTimeSlot(defaultDate));
     setAppointmentType(APPOINTMENT_TYPES[0]);
     const matchesKnownDoctor = doctors.some((doctor) => doctor.id === defaultDoctorId);
     setDoctorId(matchesKnownDoctor || doctors.length === 0 ? defaultDoctorId : doctors[0].id);
@@ -91,7 +133,7 @@ export function NewAppointmentDialog({ open, tenantId, defaultDoctorId, defaultD
     setQcDui("");
     setQcError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, defaultDate, defaultDoctorId, doctors]);
+  }, [open, defaultDate, defaultDoctorId, defaultPatient, doctors]);
 
   function openQuickCreate() {
     const parts = patientQuery.trim().split(/\s+/);
@@ -324,17 +366,46 @@ export function NewAppointmentDialog({ open, tenantId, defaultDoctorId, defaultD
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="scheduled-at">Fecha y hora</Label>
+            <Label htmlFor="scheduled-date">Fecha</Label>
             <Input
-              id="scheduled-at"
-              type="datetime-local"
-              value={scheduledAt}
-              min={nowLocalDateTimeInputValue()}
-              step={1800}
-              onChange={(event) => setScheduledAt(event.target.value)}
+              id="scheduled-date"
+              type="date"
+              value={dateValue}
+              min={todayLocalDateValue()}
+              onChange={(event) => {
+                const nextDate = event.target.value;
+                setDateValue(nextDate);
+                setTimeValue((current) => {
+                  const nextAvailable = nextAvailableTimeSlot(nextDate);
+                  const currentMinutes = current.split(":").map(Number);
+                  const nextAvailableMinutes = nextAvailable.split(":").map(Number);
+                  const currentTotal = currentMinutes[0] * 60 + currentMinutes[1];
+                  const nextAvailableTotal = nextAvailableMinutes[0] * 60 + nextAvailableMinutes[1];
+                  return currentTotal >= nextAvailableTotal ? current : nextAvailable;
+                });
+              }}
               required
             />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="scheduled-time">Hora</Label>
+            <Select id="scheduled-time" value={timeValue} onChange={(event) => setTimeValue(event.target.value)} required>
+              {TIME_SLOTS.filter((slot) => {
+                if (dateValue !== todayLocalDateValue()) return true;
+                const [hours, minutes] = slot.split(":").map(Number);
+                const now = new Date();
+                return hours * 60 + minutes >= now.getHours() * 60 + now.getMinutes();
+              }).map((slot) => (
+                <option key={slot} value={slot}>
+                  {formatTimeSlotLabel(slot)}
+                </option>
+              ))}
+            </Select>
+            <p className="text-xs text-muted-foreground">Franjas de 30 minutos.</p>
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="appointment-type">Tipo de cita</Label>
             <Select id="appointment-type" value={appointmentType} onChange={(event) => setAppointmentType(event.target.value)}>
@@ -345,21 +416,20 @@ export function NewAppointmentDialog({ open, tenantId, defaultDoctorId, defaultD
               ))}
             </Select>
           </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="doctor-id">Doctor asignado</Label>
-          {doctors.length > 0 ? (
-            <Select id="doctor-id" value={doctorId} onChange={(event) => setDoctorId(event.target.value)} required>
-              {doctors.map((doctor) => (
-                <option key={doctor.id} value={doctor.id}>
-                  {doctor.full_name} - {specialtyForDoctor(doctor.full_name, doctor.specialty)}
-                </option>
-              ))}
-            </Select>
-          ) : (
-            <Input id="doctor-id" value={doctorId} onChange={(event) => setDoctorId(event.target.value)} required />
-          )}
+          <div className="space-y-1.5">
+            <Label htmlFor="doctor-id">Doctor asignado</Label>
+            {doctors.length > 0 ? (
+              <Select id="doctor-id" value={doctorId} onChange={(event) => setDoctorId(event.target.value)} required>
+                {doctors.map((doctor) => (
+                  <option key={doctor.id} value={doctor.id}>
+                    {doctor.full_name} - {specialtyForDoctor(doctor.full_name, doctor.specialty)}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <Input id="doctor-id" value={doctorId} onChange={(event) => setDoctorId(event.target.value)} required />
+            )}
+          </div>
         </div>
 
         <div className="space-y-1.5">

@@ -17,6 +17,7 @@ import { useCurrentUser } from "@/core/auth/current-user";
 import { specialtyForDoctor, useDoctorDirectory } from "@/modules/appointments/doctor-directory";
 import { AppointmentStatusBadge } from "@/modules/appointments/components/appointment-status-badge";
 import { DoctorScheduleModal } from "@/modules/appointments/components/doctor-schedule-modal";
+import { ReferredPatientsSummary } from "@/modules/operations/components/referred-patients-summary";
 import { listOwnTenantModules } from "@/modules/tenant/api/tenant.api";
 import { useEncounterHistoryStore } from "@/modules/clinical/store/encounterHistoryStore";
 import { Button } from "@/shared/components/ui/button";
@@ -287,6 +288,23 @@ export default function DashboardPage() {
                             </>
                           )}
                         </Button>
+                      ) : canResume ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleStartConsultation(appt)}
+                          disabled={startingId === appt.id}
+                        >
+                          {startingId === appt.id ? (
+                            "Abriendo..."
+                          ) : (
+                            <>
+                              Continuar consulta
+                              <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                            </>
+                          )}
+                        </Button>
                       ) : null}
                     </li>
                   );
@@ -324,6 +342,8 @@ export default function DashboardPage() {
           servicios de la clinica.
         </p>
       ) : null}
+
+      <ReferredPatientsSummary />
 
       <div className="rounded-custom border border-slate-100 bg-white p-6 shadow-panel">
         <h2 className="text-lg font-bold text-slate-900">Citas de hoy por medico</h2>
