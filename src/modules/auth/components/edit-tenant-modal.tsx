@@ -561,7 +561,7 @@ export function EditTenantModal({
   }
 
   return (
-    <Modal open={!!tenant} onClose={onClose} title="Editar clinica" description={`${tenant.tenant_id}.localhost`}>
+    <Modal open={!!tenant} onClose={onClose} title="Editar clinica" description={tenant.tenant_id}>
       <div className="space-y-4">
         <div className="space-y-1.5">
           <Label>Nombre de la clinica</Label>

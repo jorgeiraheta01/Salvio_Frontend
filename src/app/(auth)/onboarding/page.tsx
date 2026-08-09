@@ -498,7 +498,7 @@ function ClinicasSection({
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-slate-900">{tenant.name}</p>
-                      <p className="truncate text-xs text-slate-400">{tenant.tenant_id}.localhost</p>
+                      <p className="truncate text-xs text-slate-400">{tenant.tenant_id}</p>
                     </div>
                     <Badge variant={tenant.status === "active" ? "primary" : "destructive"}>
                       {tenant.status === "active" ? "Activa" : tenant.status === "archived" ? "Archivada" : "Bloqueada"}
@@ -708,7 +708,7 @@ function OperacionTable({ data }: { data: TenantDashboardResponse }) {
                   <tr key={t.tenant_id}>
                     <td className="px-4 py-3">
                       <p className="font-semibold text-slate-800">{t.name}</p>
-                      <p className="text-xs text-slate-400">{t.tenant_id}.localhost</p>
+                      <p className="text-xs text-slate-400">{t.tenant_id}</p>
                     </td>
                     <td className="px-4 py-3 text-right">{t.patients_count}</td>
                     <td className="px-4 py-3 text-right">{t.staff_count}</td>

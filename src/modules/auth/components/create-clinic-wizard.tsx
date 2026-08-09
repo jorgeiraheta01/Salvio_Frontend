@@ -231,7 +231,7 @@ export function CreateClinicWizard({ open, onClose, onCreated }: { open: boolean
               }}
               placeholder="clinica_sonrisa"
             />
-            <p className="text-xs text-slate-400">Sera el subdominio de acceso: {tenantId || "identificador"}.localhost</p>
+            <p className="text-xs text-slate-400">Identificador de acceso de la clinica: {tenantId || "identificador"}</p>
           </div>
           <div className="space-y-1.5">
             <Label>Correo del administrador</Label>
@@ -316,7 +316,7 @@ export function CreateClinicWizard({ open, onClose, onCreated }: { open: boolean
           <div className="rounded-xl border border-slate-200 p-4">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Clinica</p>
             <p className="text-sm font-semibold text-slate-800">{tenantName}</p>
-            <p className="text-sm text-slate-500">{tenantId}.localhost</p>
+            <p className="text-sm text-slate-500">{tenantId}</p>
             <p className="mt-2 text-xs font-bold uppercase tracking-wide text-slate-400">Administrador</p>
             <p className="text-sm text-slate-700">{adminEmail}</p>
           </div>
