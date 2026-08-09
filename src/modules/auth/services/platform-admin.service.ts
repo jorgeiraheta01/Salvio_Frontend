@@ -250,6 +250,17 @@ export async function getTenantDatabaseTables(tenantId: string): Promise<TenantT
   return httpRequest<TenantTableStats[]>(`/api/v1/tenants/${tenantId}/database-tables`);
 }
 
+export type TenantLoginActivityEntry = {
+  ip_address: string;
+  last_seen: string;
+  login_count: number;
+  users: string[];
+};
+
+export async function getTenantLoginActivity(tenantId: string, days = 30): Promise<TenantLoginActivityEntry[]> {
+  return httpRequest<TenantLoginActivityEntry[]>(`/api/v1/tenants/${tenantId}/login-activity?days=${days}`);
+}
+
 export type ChargeStatus = "pending" | "paid" | "void";
 
 export type PlatformCharge = {

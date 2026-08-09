@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, KeyRound, LogOut, Pencil, Plus, ShieldAlert, ShieldCheck, Trash2, Wand2, X } from "lucide-react";
+import { Copy, KeyRound, LogOut, MonitorSmartphone, Pencil, Plus, ShieldAlert, ShieldCheck, Trash2, Wand2, X } from "lucide-react";
 
 import { ApiError } from "@/core/api/http-client";
 import { MEDICAL_SPECIALTIES } from "@/modules/auth/constants/specialties";
@@ -11,6 +11,7 @@ import {
   forceStaffLogout,
   forceTenantAdminLogout,
   getTenantAdmin,
+  getTenantLoginActivity,
   listTenantStaff,
   resetTenantAdminPassword,
   resetTenantStaffPassword,
@@ -20,6 +21,7 @@ import {
   type StaffMember,
   type StaffRole,
   type TenantAdminSummary,
+  type TenantLoginActivityEntry,
   type TenantSummary
 } from "@/modules/auth/services/platform-admin.service";
 import { generateStrongPassword } from "@/modules/auth/utils/generate-password";
@@ -30,6 +32,7 @@ import { Label } from "@/shared/components/ui/label";
 import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { emailValidationError } from "@/shared/utils/email-validation";
+import { formatServerDateTime } from "@/shared/utils/dates";
 import { tenantUrl } from "@/shared/utils/tenant";
 
 const STAFF_ROLES: StaffRole[] = ["doctor", "resident", "nurse", "receptionist", "accountant"];
@@ -656,6 +659,65 @@ function StaffSection({ tenantId }: { tenantId: string }) {
   );
 }
 
+const LOGIN_ACTIVITY_DAYS = 30;
+
+function LoginActivitySection({ tenantId }: { tenantId: string }) {
+  const [entries, setEntries] = useState<TenantLoginActivityEntry[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+    getTenantLoginActivity(tenantId, LOGIN_ACTIVITY_DAYS)
+      .then(setEntries)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "No se pudo cargar los accesos."))
+      .finally(() => setLoading(false));
+  }, [tenantId]);
+
+  return (
+    <div className="rounded-xl border border-slate-200 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Accesos recientes (ultimos {LOGIN_ACTIVITY_DAYS} dias)</p>
+        {entries && entries.length > 0 ? (
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-500">
+            {entries.length} IP{entries.length === 1 ? "" : "s"}
+          </span>
+        ) : null}
+      </div>
+
+      {loading ? (
+        <div className="mt-3 space-y-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ) : error ? (
+        <p className="mt-2 text-sm text-red-700">{error}</p>
+      ) : !entries || entries.length === 0 ? (
+        <p className="mt-2 text-sm text-slate-400">Sin inicios de sesion registrados todavia en este periodo.</p>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {entries.map((entry) => (
+            <div key={entry.ip_address} className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+              <div className="flex items-start gap-2 min-w-0">
+                <MonitorSmartphone className="mt-0.5 h-4 w-4 flex-shrink-0 text-slate-400" />
+                <div className="min-w-0">
+                  <p className="font-mono text-sm font-semibold text-slate-800">{entry.ip_address}</p>
+                  <p className="truncate text-xs text-slate-500">{entry.users.length > 0 ? entry.users.join(", ") : "Usuario desconocido"}</p>
+                </div>
+              </div>
+              <div className="flex-shrink-0 text-right text-xs text-slate-400">
+                <p>{entry.login_count} inicio{entry.login_count === 1 ? "" : "s"}</p>
+                <p>{formatServerDateTime(entry.last_seen)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Panel completo de una clinica: pensado para vivir en una pagina propia
  * (no en un modal) -- arranca en modo solo-lectura y el lapiz arriba a la
@@ -826,6 +888,8 @@ export function ClinicDetailPanel({ tenant, onUpdated }: { tenant: TenantSummary
       </div>
 
       <StaffSection tenantId={tenant.tenant_id} />
+
+      <LoginActivitySection tenantId={tenant.tenant_id} />
     </div>
   );
 }
