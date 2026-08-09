@@ -2,13 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Ban, BarChart3, Building2, Database, Download, PanelLeftClose, PanelLeftOpen, Pencil, PowerOff, Plus, Receipt, Search, ShieldCheck } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { Ban, BarChart3, Building2, Copy, Download, Eye, PowerOff, Plus, Receipt, Search, ShieldCheck } from "lucide-react";
 
 import { ApiError } from "@/core/api/http-client";
 import { usePlatformAdmin } from "@/core/auth/current-user";
 import { CreateClinicWizard } from "@/modules/auth/components/create-clinic-wizard";
-import { EditTenantModal } from "@/modules/auth/components/edit-tenant-modal";
 import { ModulesModal } from "@/modules/auth/components/modules-modal";
+import { OwnerShell, type OwnerSection } from "@/modules/auth/components/owner-shell";
 import {
   platformAdminConfirmTotpSetup,
   platformAdminGetTotpSetup,
@@ -39,6 +40,8 @@ import { ConfirmDialog } from "@/shared/components/ui/confirm-dialog";
 import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
 import { cn } from "@/shared/utils/cn";
+import { formatServerDate, formatServerDateTime } from "@/shared/utils/dates";
+import { tenantUrl } from "@/shared/utils/tenant";
 
 const inputClass =
   "w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand";
@@ -313,85 +316,7 @@ function OwnerLoginGate() {
   );
 }
 
-function formatDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString("es-SV", { day: "numeric", month: "short", year: "numeric" });
-  } catch {
-    return iso;
-  }
-}
 
-type OwnerSection = "clinicas" | "metricas" | "basedatos" | "facturacion";
-
-const OWNER_NAV_ITEMS: { key: OwnerSection; label: string; icon: typeof Building2 }[] = [
-  { key: "clinicas", label: "Clinicas", icon: Building2 },
-  { key: "metricas", label: "Metricas por clinica", icon: BarChart3 },
-  { key: "basedatos", label: "Base de datos", icon: Database },
-  { key: "facturacion", label: "Facturacion", icon: Receipt }
-];
-
-function OwnerSidebar({
-  section,
-  onSelect,
-  collapsed,
-  onToggle
-}: {
-  section: OwnerSection;
-  onSelect: (section: OwnerSection) => void;
-  collapsed: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <aside className="flex h-full w-full flex-col justify-between overflow-hidden border-r border-slate-200 bg-white">
-      <div>
-        <div className={`flex items-center gap-3 px-4 py-4 lg:px-6 lg:py-6 ${collapsed ? "justify-center px-2 lg:px-2" : ""}`}>
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-brand">
-            <ShieldCheck className="h-4 w-4 text-white" />
-          </div>
-          {collapsed ? null : (
-            <div className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Salvio</p>
-              <p className="truncate text-sm font-bold text-slate-900">Propietario</p>
-            </div>
-          )}
-        </div>
-        <nav className="space-y-1 px-3 pb-3 lg:px-4 lg:pb-6">
-          {OWNER_NAV_ITEMS.map((item) => {
-            const Icon = item.icon;
-            const active = section === item.key;
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => onSelect(item.key)}
-                title={collapsed ? item.label : undefined}
-                className={`flex w-full items-center gap-2.5 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                  collapsed ? "justify-center px-0" : ""
-                } ${active ? "bg-brand/10 text-brand" : "text-slate-500 hover:bg-slate-100 hover:text-slate-800"}`}
-              >
-                <Icon className="h-4 w-4 flex-shrink-0" />
-                {collapsed ? null : item.label}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
-      <div className={`p-3 lg:p-4 ${collapsed ? "px-2" : ""}`}>
-        <button
-          type="button"
-          onClick={onToggle}
-          title={collapsed ? "Expandir menu" : "Colapsar menu"}
-          className={`flex w-full items-center rounded-xl border border-slate-200 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 ${
-            collapsed ? "justify-center px-0" : "justify-center gap-2 px-4"
-          }`}
-        >
-          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-          {collapsed ? null : "Colapsar"}
-        </button>
-      </div>
-    </aside>
-  );
-}
 
 function ClinicasSection({
   tenants,
@@ -399,7 +324,6 @@ function ClinicasSection({
   error,
   onRetry,
   onCreate,
-  onEdit,
   onToggleBlock,
   onManageModules
 }: {
@@ -408,13 +332,20 @@ function ClinicasSection({
   error: string | null;
   onRetry: () => void;
   onCreate: () => void;
-  onEdit: (tenant: TenantSummary) => void;
   onToggleBlock: (tenant: TenantSummary) => void;
   onManageModules: (tenant: TenantSummary) => void;
 }) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [copiedTenantId, setCopiedTenantId] = useState<string | null>(null);
   const PAGE_SIZE = 6;
+
+  function copyTenantUrl(tenantId: string) {
+    navigator.clipboard?.writeText(tenantUrl(tenantId)).then(() => {
+      setCopiedTenantId(tenantId);
+      setTimeout(() => setCopiedTenantId(null), 1500);
+    });
+  }
 
   const filteredTenants = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -504,12 +435,20 @@ function ClinicasSection({
                       {tenant.status === "active" ? "Activa" : tenant.status === "archived" ? "Archivada" : "Bloqueada"}
                     </Badge>
                   </div>
-                  <p className="text-xs text-slate-400">Creada el {formatDate(tenant.created_at)}</p>
+                  <p className="text-xs text-slate-400">
+                    {copiedTenantId === tenant.tenant_id ? <span className="text-emerald-600">URL copiada</span> : `Creada el ${formatServerDate(tenant.created_at)}`}
+                  </p>
                   <div className="mt-auto flex items-center gap-1.5 border-t border-slate-100 pt-3">
-                    <Button type="button" variant="outline" size="sm" className="flex-1" onClick={() => onEdit(tenant)}>
-                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                      Editar
+                    <Button type="button" variant="outline" size="sm" onClick={() => copyTenantUrl(tenant.tenant_id)} title="Copiar URL de la clinica">
+                      <Copy className="h-3.5 w-3.5" />
+                      <span className="sr-only">Copiar URL</span>
                     </Button>
+                    <Link href={`/onboarding/clinicas/${tenant.tenant_id}`} className="flex-1">
+                      <Button type="button" variant="outline" size="sm" className="w-full" title="Ver toda la informacion de la clinica">
+                        <Eye className="mr-1.5 h-3.5 w-3.5" />
+                        Ver
+                      </Button>
+                    </Link>
                     <ActionMenu
                       items={[
                         {
@@ -554,11 +493,7 @@ function formatCurrency(amount: number): string {
 
 function formatDateTime(iso: string | null): string {
   if (!iso) return "Sin actividad";
-  try {
-    return new Date(iso).toLocaleString("es-SV", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return iso;
-  }
+  return formatServerDateTime(iso);
 }
 
 type MetricsSortKey = "name" | "patients_count" | "staff_count" | "encounters_count" | "billing_pending" | "last_activity_at";
@@ -1353,36 +1288,16 @@ function FacturacionSection({ tenants }: { tenants: TenantSummary[] }) {
   );
 }
 
-const OWNER_SIDEBAR_STORAGE_KEY = "salvio_owner_sidebar_collapsed";
-
 function OwnerDashboard() {
-  const logout = useAuthStore((state) => state.logout);
-  const [section, setSection] = useState<OwnerSection>("clinicas");
+  const searchParams = useSearchParams();
+  const initialSection = (searchParams.get("section") as OwnerSection | null) ?? "clinicas";
+  const [section, setSection] = useState<OwnerSection>(initialSection);
   const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [editingTenant, setEditingTenant] = useState<TenantSummary | null>(null);
   const [blockTarget, setBlockTarget] = useState<TenantSummary | null>(null);
   const [modulesTarget, setModulesTarget] = useState<TenantSummary | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(OWNER_SIDEBAR_STORAGE_KEY);
-    if (stored !== null) {
-      setSidebarCollapsed(stored === "1");
-    } else if (window.innerWidth < 1024) {
-      setSidebarCollapsed(true);
-    }
-  }, []);
-
-  function toggleSidebar() {
-    setSidebarCollapsed((prev) => {
-      const next = !prev;
-      window.localStorage.setItem(OWNER_SIDEBAR_STORAGE_KEY, next ? "1" : "0");
-      return next;
-    });
-  }
 
   async function load() {
     setLoading(true);
@@ -1401,11 +1316,6 @@ function OwnerDashboard() {
     load();
   }, []);
 
-  function onTenantUpdated(updated: TenantSummary) {
-    setTenants((prev) => prev.map((t) => (t.tenant_id === updated.tenant_id ? updated : t)));
-    setEditingTenant(updated);
-  }
-
   async function onConfirmToggleBlock() {
     if (!blockTarget) return;
     const nextStatus = blockTarget.status === "suspended" ? "active" : "suspended";
@@ -1415,38 +1325,24 @@ function OwnerDashboard() {
   }
 
   return (
-    <div
-      className="grid min-h-screen bg-slate-100 transition-[grid-template-columns] duration-200"
-      style={{ gridTemplateColumns: `${sidebarCollapsed ? "76px" : "240px"} minmax(0,1fr)` }}
-    >
-      <OwnerSidebar section={section} onSelect={setSection} collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+    <OwnerShell activeSection={section} onSelectSection={setSection}>
+      {section === "clinicas" ? (
+        <ClinicasSection
+          tenants={tenants}
+          loading={loading}
+          error={error}
+          onRetry={load}
+          onCreate={() => setWizardOpen(true)}
+          onToggleBlock={setBlockTarget}
+          onManageModules={setModulesTarget}
+        />
+      ) : null}
 
-      <div className="min-w-0 px-4 py-6 lg:px-6 lg:py-10">
-        <div className="mx-auto mb-6 flex max-w-6xl items-center justify-end">
-          <Button type="button" variant="outline" onClick={() => logout(true)}>
-            Salir
-          </Button>
-        </div>
+      {section === "metricas" ? <MetricasSection /> : null}
 
-        {section === "clinicas" ? (
-          <ClinicasSection
-            tenants={tenants}
-            loading={loading}
-            error={error}
-            onRetry={load}
-            onCreate={() => setWizardOpen(true)}
-            onEdit={setEditingTenant}
-            onToggleBlock={setBlockTarget}
-            onManageModules={setModulesTarget}
-          />
-        ) : null}
+      {section === "basedatos" ? <BaseDeDatosSection tenants={tenants} /> : null}
 
-        {section === "metricas" ? <MetricasSection /> : null}
-
-        {section === "basedatos" ? <BaseDeDatosSection tenants={tenants} /> : null}
-
-        {section === "facturacion" ? <FacturacionSection tenants={tenants} /> : null}
-      </div>
+      {section === "facturacion" ? <FacturacionSection tenants={tenants} /> : null}
 
       <CreateClinicWizard
         open={wizardOpen}
@@ -1456,7 +1352,6 @@ function OwnerDashboard() {
           load();
         }}
       />
-      <EditTenantModal tenant={editingTenant} onClose={() => setEditingTenant(null)} onUpdated={onTenantUpdated} />
       <ModulesModal tenant={modulesTarget} onClose={() => setModulesTarget(null)} />
       <ConfirmDialog
         open={!!blockTarget}
@@ -1471,7 +1366,7 @@ function OwnerDashboard() {
         onCancel={() => setBlockTarget(null)}
         onConfirm={onConfirmToggleBlock}
       />
-    </div>
+    </OwnerShell>
   );
 }
 

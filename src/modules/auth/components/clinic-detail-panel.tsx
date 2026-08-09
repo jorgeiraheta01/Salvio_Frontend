@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { KeyRound, LogOut, Pencil, Plus, ShieldAlert, ShieldCheck, Trash2, Wand2, X } from "lucide-react";
+import { Copy, KeyRound, LogOut, Pencil, Plus, ShieldAlert, ShieldCheck, Trash2, Wand2, X } from "lucide-react";
 
 import { ApiError } from "@/core/api/http-client";
 import { MEDICAL_SPECIALTIES } from "@/modules/auth/constants/specialties";
@@ -27,11 +27,41 @@ import { Button } from "@/shared/components/ui/button";
 import { ConfirmDialog } from "@/shared/components/ui/confirm-dialog";
 import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
-import { Modal } from "@/shared/components/ui/modal";
 import { Select } from "@/shared/components/ui/select";
 import { Skeleton } from "@/shared/components/ui/skeleton";
+import { emailValidationError } from "@/shared/utils/email-validation";
+import { tenantUrl } from "@/shared/utils/tenant";
 
 const STAFF_ROLES: StaffRole[] = ["doctor", "resident", "nurse", "receptionist", "accountant"];
+
+function useCopy() {
+  const [copied, setCopied] = useState(false);
+  function copy(text: string) {
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+  return { copied, copy };
+}
+
+export function ClinicUrlRow({ tenantId }: { tenantId: string }) {
+  const { copied, copy } = useCopy();
+  const url = tenantUrl(tenantId);
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand/5 px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-wide text-brand">URL de acceso de la clinica</p>
+        <p className="truncate text-sm font-semibold text-slate-800">{url}</p>
+      </div>
+      <Button type="button" variant="outline" size="sm" onClick={() => copy(url)}>
+        <Copy className="mr-1.5 h-3.5 w-3.5" />
+        {copied ? "Copiado" : "Copiar"}
+      </Button>
+    </div>
+  );
+}
 
 function StaffRow({
   tenantId,
@@ -50,6 +80,7 @@ function StaffRow({
   const [email, setEmail] = useState(member.email);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { copied, copy } = useCopy();
 
   const [resetting, setResetting] = useState(false);
   const [resetResult, setResetResult] = useState<string | null>(null);
@@ -57,7 +88,22 @@ function StaffRow({
   const [confirmingLogout, setConfirmingLogout] = useState(false);
   const [loggedOutOk, setLoggedOutOk] = useState(false);
 
+  function shareText(password?: string) {
+    const lines = [
+      `Acceso a ${STAFF_ROLE_LABELS[member.role]} en Salvio`,
+      `URL: ${tenantUrl(tenantId)}`,
+      `Correo: ${member.email}`
+    ];
+    if (password) lines.push(`Contrasena: ${password}`);
+    return lines.join("\n");
+  }
+
   async function onSave() {
+    const emailError = emailValidationError(email);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -102,7 +148,15 @@ function StaffRow({
     return (
       <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
         <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Nombre completo" />
-        <Input value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="Especialidad / area (opcional)" />
+        {member.role === "doctor" || member.role === "resident" ? (
+          <Select value={specialty} onChange={(e) => setSpecialty(e.target.value)}>
+            {MEDICAL_SPECIALTIES.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+        ) : null}
         <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="correo@clinica.com" />
         {error ? <p className="text-sm text-red-700">{error}</p> : null}
         <div className="flex gap-2">
@@ -140,6 +194,15 @@ function StaffRow({
         <div className="flex flex-shrink-0 items-center gap-1">
           <button
             type="button"
+            onClick={() => copy(shareText())}
+            className="p-1 text-slate-400 hover:text-brand"
+            aria-label={`Copiar datos de acceso de ${member.full_name}`}
+            title="Copiar URL y correo para compartir"
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
             onClick={() => setConfirmingLogout(true)}
             disabled={loggingOut}
             className="p-1 text-slate-400 hover:text-red-600"
@@ -159,14 +222,20 @@ function StaffRow({
           </button>
         </div>
       </div>
+      {copied ? <p className="mt-1 text-xs text-emerald-700">Datos copiados — listos para pegar y enviar.</p> : null}
       {resetResult ? (
         <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
           <span>
             Contrasena nueva: <span className="font-mono">{resetResult}</span>
           </span>
-          <button type="button" onClick={() => setResetResult(null)} aria-label="Cerrar">
-            <X className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => copy(shareText(resetResult))} className="font-semibold underline" title="Copiar URL, correo y contrasena">
+              Copiar todo
+            </button>
+            <button type="button" onClick={() => setResetResult(null)} aria-label="Cerrar">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       ) : null}
       {loggedOutOk ? (
@@ -195,12 +264,19 @@ function AdminSection({ tenantId }: { tenantId: string }) {
   const [admin, setAdmin] = useState<TenantAdminSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { copied, copy } = useCopy();
 
   const [resetting, setResetting] = useState(false);
   const [resetResult, setResetResult] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [confirmingLogout, setConfirmingLogout] = useState(false);
   const [loggedOutOk, setLoggedOutOk] = useState(false);
+
+  function shareText(password?: string) {
+    const lines = ["Acceso de Administrador en Salvio", `URL: ${tenantUrl(tenantId)}`, `Correo: ${admin?.email ?? ""}`];
+    if (password) lines.push(`Contrasena: ${password}`);
+    return lines.join("\n");
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -256,6 +332,15 @@ function AdminSection({ tenantId }: { tenantId: string }) {
               <div className="flex flex-shrink-0 items-center gap-1">
                 <button
                   type="button"
+                  onClick={() => copy(shareText())}
+                  className="p-1 text-slate-400 hover:text-brand"
+                  aria-label={`Copiar datos de acceso de ${admin.full_name}`}
+                  title="Copiar URL y correo para compartir"
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
                   onClick={() => setConfirmingLogout(true)}
                   disabled={loggingOut}
                   className="p-1 text-slate-400 hover:text-red-600"
@@ -276,14 +361,20 @@ function AdminSection({ tenantId }: { tenantId: string }) {
                 </button>
               </div>
             </div>
+            {copied ? <p className="mt-1 text-xs text-emerald-700">Datos copiados — listos para pegar y enviar.</p> : null}
             {resetResult ? (
               <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                 <span>
                   Contrasena nueva: <span className="font-mono">{resetResult}</span>
                 </span>
-                <button type="button" onClick={() => setResetResult(null)} aria-label="Cerrar">
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => copy(shareText(resetResult))} className="font-semibold underline" title="Copiar URL, correo y contrasena">
+                    Copiar todo
+                  </button>
+                  <button type="button" onClick={() => setResetResult(null)} aria-label="Cerrar">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             ) : null}
             {loggedOutOk ? (
@@ -357,6 +448,11 @@ function StaffSection({ tenantId }: { tenantId: string }) {
       setFormError("Ingresa nombre y correo.");
       return;
     }
+    const emailError = emailValidationError(email);
+    if (emailError) {
+      setFormError(emailError);
+      return;
+    }
     if (password.length < 8) {
       setFormError("La contrasena debe tener al menos 8 caracteres.");
       return;
@@ -390,23 +486,54 @@ function StaffSection({ tenantId }: { tenantId: string }) {
     setStaff((prev) => prev.map((m) => (m.id === updated.id ? updated : m)));
   }
 
+  const { copied: teamCopied, copy: copyTeam } = useCopy();
+
+  function copyWholeTeam() {
+    const doctors = staff.filter((m) => m.role === "doctor" || m.role === "resident");
+    const admin = staff.filter((m) => m.role !== "doctor" && m.role !== "resident");
+    const lines = [`Equipo en Salvio`, `URL: ${tenantUrl(tenantId)}`, ""];
+    if (doctors.length > 0) {
+      lines.push("Medicos:");
+      doctors.forEach((m) => lines.push(`- ${m.full_name} (${m.email})`));
+      lines.push("");
+    }
+    if (admin.length > 0) {
+      lines.push("Administrativo:");
+      admin.forEach((m) => lines.push(`- ${m.full_name} (${m.email})`));
+    }
+    copyTeam(lines.join("\n").trim());
+  }
+
   return (
     <div className="rounded-xl border border-slate-200 p-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Equipo (medicos y administrativo)</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            resetForm();
-            setFormOpen((v) => !v);
-          }}
-        >
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Agregar
-        </Button>
+        <div className="flex items-center gap-2">
+          {staff.length > 0 ? (
+            <Button type="button" variant="outline" size="sm" onClick={copyWholeTeam} title="Copiar URL + nombres y correos de todo el equipo">
+              <Copy className="mr-1.5 h-3.5 w-3.5" />
+              {teamCopied ? "Copiado" : "Copiar equipo"}
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetForm();
+              setFormOpen((v) => !v);
+            }}
+          >
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Agregar
+          </Button>
+        </div>
       </div>
+      {staff.length > 0 ? (
+        <p className="mt-1 text-[11px] text-slate-400">
+          &quot;Copiar equipo&quot; incluye nombres y correos, no contrasenas ya asignadas (esas solo se conocen al crear o resetear a cada persona).
+        </p>
+      ) : null}
 
       {formOpen ? (
         <div className="mt-3 space-y-2 rounded-lg border border-slate-200 p-3">
@@ -416,9 +543,25 @@ function StaffSection({ tenantId }: { tenantId: string }) {
                 <strong>{created.full_name}</strong> ({STAFF_ROLE_LABELS[created.role]}) creado. Correo: {created.email} — Contrasena:{" "}
                 <span className="font-mono">{password}</span>
               </p>
-              <Button type="button" size="sm" variant="outline" onClick={() => setFormOpen(false)}>
-                Listo
-              </Button>
+              <p className="truncate text-xs text-emerald-700">{tenantUrl(tenantId)}</p>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    navigator.clipboard?.writeText(
+                      `Acceso a ${STAFF_ROLE_LABELS[created.role]} en Salvio\nURL: ${tenantUrl(tenantId)}\nCorreo: ${created.email}\nContrasena: ${password}`
+                    )
+                  }
+                >
+                  <Copy className="mr-1.5 h-3.5 w-3.5" />
+                  Copiar todo
+                </Button>
+                <Button type="button" size="sm" variant="outline" onClick={() => setFormOpen(false)}>
+                  Listo
+                </Button>
+              </div>
             </div>
           ) : (
             <>
@@ -455,15 +598,48 @@ function StaffSection({ tenantId }: { tenantId: string }) {
         </div>
       ) : null}
 
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 space-y-4">
         {loading ? (
-          [1, 2].map((k) => <Skeleton key={k} className="h-12 w-full" />)
+          <div className="space-y-2">
+            {[1, 2].map((k) => (
+              <Skeleton key={k} className="h-12 w-full" />
+            ))}
+          </div>
         ) : error ? (
           <p className="text-sm text-red-700">{error}</p>
         ) : staff.length === 0 ? (
           <p className="text-sm text-slate-400">Sin equipo todavia.</p>
         ) : (
-          staff.map((member) => <StaffRow key={member.id} tenantId={tenantId} member={member} onUpdated={onMemberUpdated} onRemove={setRemoving} />)
+          <>
+            {(() => {
+              const doctors = staff.filter((m) => m.role === "doctor" || m.role === "resident");
+              const admin = staff.filter((m) => m.role !== "doctor" && m.role !== "resident");
+              return (
+                <>
+                  {doctors.length > 0 ? (
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Medicos</p>
+                      <div className="space-y-2">
+                        {doctors.map((member) => (
+                          <StaffRow key={member.id} tenantId={tenantId} member={member} onUpdated={onMemberUpdated} onRemove={setRemoving} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {admin.length > 0 ? (
+                    <div className="rounded-lg border border-slate-200 bg-white p-3">
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-slate-400">Administrativo</p>
+                      <div className="space-y-2">
+                        {admin.map((member) => (
+                          <StaffRow key={member.id} tenantId={tenantId} member={member} onUpdated={onMemberUpdated} onRemove={setRemoving} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              );
+            })()}
+          </>
         )}
       </div>
 
@@ -480,34 +656,31 @@ function StaffSection({ tenantId }: { tenantId: string }) {
   );
 }
 
-export function EditTenantModal({
-  tenant,
-  onClose,
-  onUpdated
-}: {
-  tenant: TenantSummary | null;
-  onClose: () => void;
-  onUpdated: (updated: TenantSummary) => void;
-}) {
-  const [name, setName] = useState("");
-  const [billingContactName, setBillingContactName] = useState("");
-  const [billingContactPhone, setBillingContactPhone] = useState("");
+/**
+ * Panel completo de una clinica: pensado para vivir en una pagina propia
+ * (no en un modal) -- arranca en modo solo-lectura y el lapiz arriba a la
+ * derecha del bloque de info basica habilita la edicion (nombre, representante
+ * de facturacion, estado). Admin y Equipo son secciones de gestion aparte,
+ * siempre con sus propias acciones (no dependen de este toggle).
+ */
+export function ClinicDetailPanel({ tenant, onUpdated }: { tenant: TenantSummary; onUpdated: (updated: TenantSummary) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(tenant.name);
+  const [billingContactName, setBillingContactName] = useState(tenant.billing_contact_name ?? "");
+  const [billingContactPhone, setBillingContactPhone] = useState(tenant.billing_contact_phone ?? "");
   const [error, setError] = useState<string | null>(null);
   const [savingName, setSavingName] = useState(false);
   const [savingBillingContact, setSavingBillingContact] = useState(false);
   const [togglingStatus, setTogglingStatus] = useState(false);
 
   useEffect(() => {
-    setName(tenant?.name ?? "");
-    setBillingContactName(tenant?.billing_contact_name ?? "");
-    setBillingContactPhone(tenant?.billing_contact_phone ?? "");
+    setName(tenant.name);
+    setBillingContactName(tenant.billing_contact_name ?? "");
+    setBillingContactPhone(tenant.billing_contact_phone ?? "");
     setError(null);
   }, [tenant]);
 
-  if (!tenant) return null;
-
   async function onSaveName() {
-    if (!tenant) return;
     if (!name.trim()) {
       setError("El nombre no puede quedar vacio.");
       return;
@@ -525,7 +698,6 @@ export function EditTenantModal({
   }
 
   async function onSaveBillingContact() {
-    if (!tenant) return;
     setSavingBillingContact(true);
     setError(null);
     try {
@@ -547,7 +719,6 @@ export function EditTenantModal({
   const isActive = tenant.status === "active";
 
   async function onToggleStatus() {
-    if (!tenant) return;
     setTogglingStatus(true);
     setError(null);
     try {
@@ -561,66 +732,100 @@ export function EditTenantModal({
   }
 
   return (
-    <Modal open={!!tenant} onClose={onClose} title="Editar clinica" description={tenant.tenant_id}>
-      <div className="space-y-4">
-        <div className="space-y-1.5">
-          <Label>Nombre de la clinica</Label>
-          <div className="flex gap-2">
-            <Input value={name} onChange={(e) => setName(e.target.value)} />
-            <Button type="button" variant="outline" onClick={onSaveName} disabled={savingName || name.trim() === tenant.name}>
-              {savingName ? "Guardando..." : "Guardar"}
-            </Button>
-          </div>
-        </div>
+    <div className="space-y-4">
+      <ClinicUrlRow tenantId={tenant.tenant_id} />
 
-        <div className="rounded-xl border border-slate-200 p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Representante de facturacion</p>
-          <p className="mt-1 text-xs text-slate-500">A nombre de quien se emite la factura de esta clinica.</p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <Input placeholder="Nombre del representante" value={billingContactName} onChange={(e) => setBillingContactName(e.target.value)} />
-            <Input placeholder="Telefono" value={billingContactPhone} onChange={(e) => setBillingContactPhone(e.target.value)} />
-          </div>
-          <Button
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+      <div className="rounded-xl border border-slate-200 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Informacion de la clinica</p>
+          <button
             type="button"
-            variant="outline"
-            size="sm"
-            className="mt-2"
-            onClick={onSaveBillingContact}
-            disabled={savingBillingContact || billingContactUnchanged}
+            onClick={() => setEditing((v) => !v)}
+            className={editing ? "p-1 text-brand" : "p-1 text-slate-400 hover:text-brand"}
+            aria-label={editing ? "Salir de edicion" : "Editar informacion de la clinica"}
+            title={editing ? "Salir de edicion" : "Editar"}
           >
-            {savingBillingContact ? "Guardando..." : "Guardar representante"}
-          </Button>
+            <Pencil className="h-4 w-4" />
+          </button>
         </div>
 
-        <div className="rounded-xl border border-slate-200 p-4">
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Estado</p>
-          <p className="mt-1 text-sm text-slate-600">
-            {isActive
-              ? "La clinica esta activa: sus usuarios pueden iniciar sesion con normalidad."
-              : "La clinica esta bloqueada: nadie de esa clinica puede iniciar sesion."}
-          </p>
-          <Button
-            type="button"
-            variant={isActive ? "outline" : "default"}
-            className={isActive ? "mt-3 border-red-200 text-red-700 hover:bg-red-50" : "mt-3"}
-            onClick={onToggleStatus}
-            disabled={togglingStatus}
-          >
-            {isActive ? <ShieldAlert className="mr-1.5 h-4 w-4" /> : <ShieldCheck className="mr-1.5 h-4 w-4" />}
-            {togglingStatus ? "Actualizando..." : isActive ? "Bloquear clinica" : "Activar clinica"}
-          </Button>
-        </div>
+        {editing ? (
+          <div className="mt-3 space-y-4">
+            <div className="space-y-1.5">
+              <Label>Nombre de la clinica</Label>
+              <div className="flex gap-2">
+                <Input value={name} onChange={(e) => setName(e.target.value)} />
+                <Button type="button" variant="outline" onClick={onSaveName} disabled={savingName || name.trim() === tenant.name}>
+                  {savingName ? "Guardando..." : "Guardar"}
+                </Button>
+              </div>
+            </div>
 
-        <AdminSection tenantId={tenant.tenant_id} />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Representante de facturacion</p>
+              <p className="mt-1 text-xs text-slate-500">A nombre de quien se emite la factura de esta clinica.</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <Input placeholder="Nombre del representante" value={billingContactName} onChange={(e) => setBillingContactName(e.target.value)} />
+                <Input placeholder="Telefono" value={billingContactPhone} onChange={(e) => setBillingContactPhone(e.target.value)} />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={onSaveBillingContact}
+                disabled={savingBillingContact || billingContactUnchanged}
+              >
+                {savingBillingContact ? "Guardando..." : "Guardar representante"}
+              </Button>
+            </div>
 
-        <StaffSection tenantId={tenant.tenant_id} />
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Estado</p>
+              <p className="mt-1 text-sm text-slate-600">
+                {isActive
+                  ? "La clinica esta activa: sus usuarios pueden iniciar sesion con normalidad."
+                  : "La clinica esta bloqueada: nadie de esa clinica puede iniciar sesion."}
+              </p>
+              <Button
+                type="button"
+                variant={isActive ? "outline" : "default"}
+                className={isActive ? "mt-3 border-red-200 text-red-700 hover:bg-red-50" : "mt-3"}
+                onClick={onToggleStatus}
+                disabled={togglingStatus}
+              >
+                {isActive ? <ShieldAlert className="mr-1.5 h-4 w-4" /> : <ShieldCheck className="mr-1.5 h-4 w-4" />}
+                {togglingStatus ? "Actualizando..." : isActive ? "Bloquear clinica" : "Activar clinica"}
+              </Button>
+            </div>
 
-        {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
-
-        <Button type="button" variant="ghost" className="w-full" onClick={onClose}>
-          Cerrar
-        </Button>
+            {error ? <p className="text-sm text-red-700">{error}</p> : null}
+          </div>
+        ) : (
+          <div className="mt-3 space-y-3 text-sm">
+            <div>
+              <p className="text-xs text-slate-400">Nombre</p>
+              <p className="font-semibold text-slate-800">{tenant.name}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">Representante de facturacion</p>
+              <p className="text-slate-700">
+                {tenant.billing_contact_name ? `${tenant.billing_contact_name}${tenant.billing_contact_phone ? ` · ${tenant.billing_contact_phone}` : ""}` : "Sin asignar"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-400">Estado</p>
+              <p className={isActive ? "font-semibold text-emerald-700" : "font-semibold text-red-700"}>{isActive ? "Activa" : "Bloqueada"}</p>
+            </div>
+          </div>
+        )}
       </div>
-    </Modal>
+
+      <AdminSection tenantId={tenant.tenant_id} />
+      </div>
+
+      <StaffSection tenantId={tenant.tenant_id} />
+    </div>
   );
 }

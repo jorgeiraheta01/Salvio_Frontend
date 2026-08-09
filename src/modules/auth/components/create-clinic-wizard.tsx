@@ -12,6 +12,8 @@ import { Input } from "@/shared/components/ui/input";
 import { Label } from "@/shared/components/ui/label";
 import { Modal } from "@/shared/components/ui/modal";
 import { Select } from "@/shared/components/ui/select";
+import { emailValidationError } from "@/shared/utils/email-validation";
+import { tenantUrl } from "@/shared/utils/tenant";
 
 type DraftDoctor = DoctorSeed & { _key: string };
 
@@ -52,11 +54,12 @@ function StepIndicator({ step }: { step: Step }) {
   );
 }
 
-function CredentialRow({ label, email, password }: { label: string; email: string; password: string }) {
+function CredentialRow({ label, email, password, url }: { label: string; email: string; password: string; url: string }) {
   const [copied, setCopied] = useState(false);
 
   function onCopy() {
-    navigator.clipboard?.writeText(`${email} / ${password}`).then(() => {
+    const message = `Acceso a tu clinica en Salvio\nURL: ${url}\nCorreo: ${email}\nContrasena: ${password}`;
+    navigator.clipboard?.writeText(message).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
@@ -68,6 +71,31 @@ function CredentialRow({ label, email, password }: { label: string; email: strin
         <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{label}</p>
         <p className="truncate text-sm font-semibold text-slate-800">{email}</p>
         <p className="font-mono text-sm text-slate-600">{password}</p>
+      </div>
+      <Button type="button" variant="outline" size="sm" onClick={onCopy}>
+        <Copy className="mr-1.5 h-3.5 w-3.5" />
+        {copied ? "Copiado" : "Copiar"}
+      </Button>
+    </div>
+  );
+}
+
+function UrlRow({ tenantId }: { tenantId: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = tenantUrl(tenantId);
+
+  function onCopy() {
+    navigator.clipboard?.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-brand/30 bg-brand/5 px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-wide text-brand">URL de acceso de la clinica</p>
+        <p className="truncate text-sm font-semibold text-slate-800">{url}</p>
       </div>
       <Button type="button" variant="outline" size="sm" onClick={onCopy}>
         <Copy className="mr-1.5 h-3.5 w-3.5" />
@@ -135,6 +163,8 @@ export function CreateClinicWizard({ open, onClose, onCreated }: { open: boolean
     if (!tenantName.trim()) return "Ingresa el nombre de la clinica.";
     if (!tenantId.trim() || !/^[a-z0-9_]+$/.test(tenantId)) return "El identificador solo puede tener minusculas, numeros y guion bajo.";
     if (!adminEmail.trim()) return "Ingresa el correo del administrador.";
+    const adminEmailError = emailValidationError(adminEmail);
+    if (adminEmailError) return adminEmailError;
     if (adminPassword.length < 8) return "La contrasena del administrador debe tener al menos 8 caracteres.";
     return null;
   }
@@ -143,6 +173,8 @@ export function CreateClinicWizard({ open, onClose, onCreated }: { open: boolean
     for (const doc of doctors) {
       if (!doc.full_name.trim()) return "Cada medico necesita un nombre.";
       if (!doc.email.trim()) return "Cada medico necesita un correo.";
+      const docEmailError = emailValidationError(doc.email);
+      if (docEmailError) return docEmailError;
       if (doc.password.length < 8) return "La contrasena de cada medico debe tener al menos 8 caracteres.";
     }
     const emails = [adminEmail.trim().toLowerCase(), ...doctors.map((d) => d.email.trim().toLowerCase())];
@@ -199,9 +231,16 @@ export function CreateClinicWizard({ open, onClose, onCreated }: { open: boolean
               <strong>{result.tenant_name}</strong> quedo lista en el subdominio <strong>{result.tenant_id}</strong>.
             </span>
           </div>
-          <CredentialRow label="Administrador" email={result.admin_email} password={adminPassword} />
+          <UrlRow tenantId={result.tenant_id} />
+          <CredentialRow label="Administrador" email={result.admin_email} password={adminPassword} url={tenantUrl(result.tenant_id)} />
           {doctors.map((doc) => (
-            <CredentialRow key={doc._key} label={`Dr(a). ${doc.full_name} — ${doc.specialty}`} email={doc.email} password={doc.password} />
+            <CredentialRow
+              key={doc._key}
+              label={`Dr(a). ${doc.full_name} — ${doc.specialty}`}
+              email={doc.email}
+              password={doc.password}
+              url={tenantUrl(result.tenant_id)}
+            />
           ))}
           <Button type="button" className="w-full" onClick={handleClose}>
             Listo
